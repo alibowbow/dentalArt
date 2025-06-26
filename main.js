@@ -68,8 +68,8 @@ function init() {
     controls.enableDamping = true;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
-    controls.minDistance = 1.5; // 카메라가 모델에 접근할 수 있는 최소 거리 (현재의 1/10)
-    controls.maxDistance = 80; // 카메라가 모델에서 멀어질 수 있는 최대 거리
+    controls.minDistance = 5; // 카메라가 모델에 접근할 수 있는 최소 거리
+    controls.maxDistance = 200; // 카메라가 모델에서 멀어질 수 있는 최대 거리
 
     const planeGeometry = new THREE.PlaneGeometry(200, 200);
     interactionPlane = new THREE.Mesh(planeGeometry, new THREE.MeshBasicMaterial({ visible: false }));
@@ -128,6 +128,13 @@ function init() {
     controlsToggleBtn.addEventListener('click', () => {
         controlsPanel.classList.toggle('hidden');
     });
+
+    // 초기 로드 시 컨트롤 패널 가시성 설정 (모바일에서는 숨김)
+    if (window.innerWidth < 768) {
+        controlsPanel.classList.add('hidden');
+    } else {
+        controlsPanel.classList.remove('hidden');
+    }
 
     loadModelAndSetup();
 }
@@ -391,7 +398,7 @@ function setMode(toViewerMode) {
         speedControl.style.display = 'none';
         actionControls.style.display = 'none';
         viewpointControls.classList.remove('hidden'); // 뷰어 모드일 때 버튼 표시
-        // 뷰어 모드에서는 컨트롤 패널을 항상 보이도록 (모바일에서도)
+        // 뷰어 모드에서는 컨트롤 패널을 항상 보이도록
         controlsPanel.classList.remove('hidden');
         controls.autoRotate = false;
 
@@ -413,7 +420,7 @@ function setMode(toViewerMode) {
         actionControls.style.display = 'flex';
         viewpointControls.classList.add('hidden'); // 애니메이션 모드일 때 버튼 숨김
         // 애니메이션 모드에서는 컨트롤 패널을 기본적으로 숨김 (모바일에서)
-        if (window.innerWidth < 768) { // Tailwind의 md breakpoint (768px) 기준
+        if (window.innerWidth < 768) {
             controlsPanel.classList.add('hidden');
         }
         controls.autoRotate = true;
