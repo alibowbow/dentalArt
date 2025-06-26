@@ -41,6 +41,10 @@ const langKoBtn = document.getElementById('langKoBtn');
 const manualEn = document.getElementById('manualEn');
 const manualKo = document.getElementById('manualKo');
 
+// UI 요소 추가
+const controlsToggleBtn = document.getElementById('controlsToggleBtn');
+const controlsPanel = document.getElementById('controlsPanel');
+
 // --- 초기화 ---
 function init() {
     scene = new THREE.Scene();
@@ -119,6 +123,11 @@ function init() {
     });
     langEnBtn.addEventListener('click', () => switchLanguage('en'));
     langKoBtn.addEventListener('click', () => switchLanguage('ko'));
+
+    // 컨트롤 패널 토글 버튼 이벤트 리스너
+    controlsToggleBtn.addEventListener('click', () => {
+        controlsPanel.classList.toggle('hidden');
+    });
 
     loadModelAndSetup();
 }
@@ -382,6 +391,8 @@ function setMode(toViewerMode) {
         speedControl.style.display = 'none';
         actionControls.style.display = 'none';
         viewpointControls.classList.remove('hidden'); // 뷰어 모드일 때 버튼 표시
+        // 뷰어 모드에서는 컨트롤 패널을 항상 보이도록 (모바일에서도)
+        controlsPanel.classList.remove('hidden');
         controls.autoRotate = false;
 
         gsapAnimation = gsap.to(particles.geometry.attributes.position.array, {
@@ -401,6 +412,10 @@ function setMode(toViewerMode) {
         speedControl.style.display = 'block';
         actionControls.style.display = 'flex';
         viewpointControls.classList.add('hidden'); // 애니메이션 모드일 때 버튼 숨김
+        // 애니메이션 모드에서는 컨트롤 패널을 기본적으로 숨김 (모바일에서)
+        if (window.innerWidth < 768) { // Tailwind의 md breakpoint (768px) 기준
+            controlsPanel.classList.add('hidden');
+        }
         controls.autoRotate = true;
         // GSAP가 제어하던 파티클의 속도를 초기화하여 lerp 애니메이션이 자연스럽게 이어지도록 함
         particles.geometry.attributes.velocity.array.fill(0);
