@@ -1,21 +1,159 @@
-const box = new THREE.Box3().setFromObject(particles);
-const center = box.getCenter(new THREE.Vector3());
-const size = box.getSize(new THREE.Vector3());
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Morphology Particle Art</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allow interaction with the 3D scene */
+            z-index: 2;
+        }
+        .controls, .title-box {
+            pointer-events: auto; /* Make UI elements clickable */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
 
-const maxDim = Math.max(size.x, size.y, size.z);
-const fov = camera.fov * (Math.PI / 180);
-let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+    <div id="container"></div>
 
-cameraZ *= 1.2; // 약간의 여백 추가
+    <div class="overlay">
 
-gsap.to(camera.position, {
-    duration: 1,
-    x: center.x,
-    y: center.y,
-    z: center.z + cameraZ,
-    onUpdate: () => controls.update(),
-    onComplete: () => {
-        controls.target.copy(center);
-        controls.update();
-    }
-});
+    <div class="overlay">
+
+    <div id="controlsPanel" class="controls bg-black bg-opacity-50 p-2 fixed top-0 left-0 right-0 z-10 flex flex-wrap items-center justify-center md:justify-start gap-2">
+        <div class="flex justify-center md:justify-start gap-2">
+            <button id="animationModeBtn" class="bg-green-700 hover:bg-green-800 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">애니메이션</button>
+            <button id="viewerModeBtn" class="bg-blue-700 hover:bg-blue-800 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">뷰어 모드</button>
+        </div>
+        <div class="flex items-center gap-2">
+            <label class="font-semibold text-sm">색상:</label>
+            <button id="colorPreset1" class="w-6 h-6 rounded-lg cursor-pointer" style="background-color: #00bcd4;"></button>
+            <button id="colorPreset2" class="w-6 h-6 rounded-lg cursor-pointer" style="background-color: #e91e63;"></button>
+            <button id="colorPreset3" class="w-6 h-6 rounded-lg cursor-pointer" style="background-color: #ffc107;"></button>
+            <input type="color" id="colorPicker" value="#00bcd4" class="bg-gray-700 rounded w-8 h-8">
+        </div>
+        <div class="flex items-center gap-2">
+            <label for="sizeSlider" class="font-semibold text-sm">크기:</label>
+            <input type="range" id="sizeSlider" min="0.01" max="0.3" step="0.01" value="0.15" class="w-24">
+        </div>
+        <div class="flex items-center gap-2">
+            <label for="toothScaleSlider" class="font-semibold text-sm">스케일:</label>
+            <input type="range" id="toothScaleSlider" min="0.5" max="2.5" step="0.5" value="1.0" class="w-24">
+        </div>
+        <div id="speedControl" class="flex items-center gap-2">
+            <label for="speedSlider" class="font-semibold text-sm">속도:</label>
+            <input type="range" id="speedSlider" min="0" max="1" step="0.01" value="0.35" class="w-24">
+        </div>
+        <div id="actionControls" class="flex gap-2">
+            <button id="pauseBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Pause</button>
+            <button id="resetBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Reset</button>
+        </div>
+
+        <!-- Tooth Model Selection -->
+        <div class="flex items-center gap-2">
+            <label class="font-semibold text-sm">모델:</label>
+            <button id="model01Btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">OBJ 01</button>
+            <button id="model02Btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">OBJ 02</button>
+            <button id="model03Btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">OBJ 03</button>
+            <button id="model04Btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">OBJ 04</button>
+        </div>
+
+        <!-- Viewpoint Controls (Hidden by default, shown in Viewer Mode) -->
+        <div id="viewpointControls" class="flex flex-wrap justify-center gap-2 hidden">
+            <button id="frontViewBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Front</button>
+            <button id="sideViewBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Side</button>
+            <button id="topViewBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Top</button>
+            <button id="bottomViewBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Bottom</button>
+            <button id="fitViewBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Fit</button>
+        </div>
+        <button id="helpBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 rounded-lg text-sm transition duration-300">Help</button>
+    </div>
+
+    </div>
+        </div>
+    </div>
+
+    <!-- Manual Modal -->
+    <div id="manualModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg max-w-2xl w-full relative text-gray-300 mx-4">
+            <button id="closeModalBtn" class="absolute top-4 right-4 text-2xl font-bold hover:text-white">&times;</button>
+            <div class="text-center mb-4">
+                <button id="langEnBtn" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-l-lg">English</button>
+                <button id="langKoBtn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-r-lg">한국어</button>
+            </div>
+
+            <div id="manualEn">
+                <h2 class="text-2xl font-bold mb-4 text-white">User Manual</h2>
+                <ul class="list-disc list-inside space-y-3">
+                    <li><strong>Mouse Control:</strong> Click and drag to rotate. Use the scroll wheel to zoom. Right-click and drag to pan.</li>
+                    <li><strong>Viewer Mode Toggle:</strong> Switch between a static view and a dynamic animation.
+                        <ul class="list-inside list-['\2013\00a0'] ml-6 mt-1">
+                            <li><strong>Viewer Mode:</strong> The particles form a complete tooth. You can freely rotate and inspect the model.</li>
+                            <li><strong>Animation Mode:</strong> The particles continuously assemble and scatter.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Color:</strong> Change the particle color in real-time.</li>
+                    <li><strong>Particle Size:</strong> Adjust the size of each particle.</li>
+                    <li class="animation-only"><strong>Animation Speed:</strong> (Animation Mode only) Control the speed of the particle animation.</li>
+                    <li class="animation-only"><strong>Pause/Resume:</strong> (Animation Mode only) Freeze and unfreeze the animation.</li>
+                    <li class="animation-only"><strong>Mouse Interaction:</strong> (Animation Mode only) Move your mouse over the particles to interact with them.</li>
+                </ul>
+            </div>
+
+            <div id="manualKo" class="hidden">
+                <h2 class="text-2xl font-bold mb-4 text-white">사용자 매뉴얼</h2>
+                <ul class="list-disc list-inside space-y-3">
+                    <li><strong>마우스 컨트롤:</strong> 클릭 후 드래그하여 회전하세요. 스크롤 휠로 확대/축소할 수 있습니다. 마우스 오른쪽 버튼을 누르고 드래그하면 이동합니다.</li>
+                    <li><strong>뷰어 모드 토글:</strong> 정적인 모델 뷰와 동적인 애니메이션 모드를 전환합니다.
+                        <ul class="list-inside list-['\2013\00a0'] ml-6 mt-1">
+                            <li><strong>뷰어 모드:</strong> 파티클이 완전한 치아 형태를 이룹니다. 자유롭게 모델을 돌려보며 감상할 수 있습니다.</li>
+                            <li><strong>애니메이션 모드:</strong> 파티클이 계속해서 모이고 흩어지는 애니메이션이 재생됩니다.</li>
+                        </ul>
+                    </li>
+                    <li><strong>색상:</strong> 파티클의 색상을 실시간으로 변경합니다.</li>
+                    <li><strong>파티클 크기:</strong> 각 파티클의 크기를 조절합니다.</li>
+                    <li class="animation-only"><strong>애니메이션 속도:</strong> (애니메이션 모드 전용) 파티클 애니메이션의 속도를 조절합니다.</li>
+                    <li class="animation-only"><strong>일시정지/재생:</strong> (애니메이션 모드 전용) 애니메이션을 잠시 멈추거나 다시 재생합니다.</li>
+                    <li class="animation-only"><strong>마우스 상호작용:</strong> (애니메이션 모드 전용) 마우스를 파티클 위로 움직여 상호작용할 수 있습니다.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "gsap": "https://unpkg.com/gsap@3.12.5/index.js"
+            }
+        }
+    </script>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
+</html>
