@@ -1,4 +1,3 @@
-
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
@@ -23,6 +22,12 @@ let interactionPlane;
 // --- 임시 벡터 ---
 const tempVec3 = new THREE.Vector3();
 const tempMousePoint = new THREE.Vector3(-1000, -1000, -1000);
+const tempTargetPos = new THREE.Vector3();
+const tempRandomPos = new THREE.Vector3();
+const tempCurrentVel = new THREE.Vector3();
+const tempRepulsionForce = new THREE.Vector3();
+const tempTargetForce = new THREE.Vector3();
+
 
 // --- UI 요소 ---
 const colorPicker = document.getElementById('colorPicker');
@@ -41,8 +46,9 @@ const langKoBtn = document.getElementById('langKoBtn');
 const manualEn = document.getElementById('manualEn');
 const manualKo = document.getElementById('manualKo');
 
-// UI 요소 추가
-const controlsToggleBtn = document.getElementById('controlsToggleBtn');
+// --- 새로운 반응형 메뉴 UI 요소 ---
+const menuBtn = document.getElementById('menuBtn');
+const closeMenuBtn = document.getElementById('closeMenuBtn');
 const controlsPanel = document.getElementById('controlsPanel');
 
 // --- 초기화 ---
@@ -68,8 +74,8 @@ function init() {
     controls.enableDamping = true;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
-    controls.minDistance = 5; // 카메라가 모델에 접근할 수 있는 최소 거리
-    controls.maxDistance = 200; // 카메라가 모델에서 멀어질 수 있는 최대 거리
+    controls.minDistance = 5;
+    controls.maxDistance = 200;
 
     const planeGeometry = new THREE.PlaneGeometry(200, 200);
     interactionPlane = new THREE.Mesh(planeGeometry, new THREE.MeshBasicMaterial({ visible: false }));
@@ -87,9 +93,9 @@ function init() {
     window.addEventListener('mousemove', onMouseMove, false);
     window.addEventListener('touchmove', onTouchMove, false);
     window.addEventListener('touchend', onTouchEnd, false);
-    window.addEventListener('wheel', onMouseWheel, false); // 마우스 휠 이벤트 리스너 추가
-    animationModeBtn.addEventListener('click', () => setMode(false)); // 애니메이션 모드
-    viewerModeBtn.addEventListener('click', () => setMode(true));  // 뷰어 모드
+    window.addEventListener('wheel', onMouseWheel, false);
+    animationModeBtn.addEventListener('click', () => setMode(false));
+    viewerModeBtn.addEventListener('click', () => setMode(true));
     colorPicker.addEventListener('input', (e) => particles.material.color.set(e.target.value));
     colorPreset1.addEventListener('click', () => particles.material.color.set('#00bcd4'));
     colorPreset2.addEventListener('click', () => particles.material.color.set('#e91e63'));
@@ -99,7 +105,7 @@ function init() {
         const scale = parseFloat(e.target.value);
         if (particles) {
             particles.scale.set(scale, scale, scale);
-            fitCameraToModel(); // 스케일 변경 후 카메라 재조정
+            fitCameraToModel();
         }
     });
     speedSlider.addEventListener('input', (e) => animationSpeed = parseFloat(e.target.value));
@@ -117,29 +123,26 @@ function init() {
     helpBtn.addEventListener('click', () => manualModal.classList.remove('hidden'));
     closeModalBtn.addEventListener('click', () => manualModal.classList.add('hidden'));
     manualModal.addEventListener('click', (e) => {
-        if (e.target === manualModal) { // 모달 배경 클릭 시 닫기
+        if (e.target === manualModal) {
             manualModal.classList.add('hidden');
         }
     });
     langEnBtn.addEventListener('click', () => switchLanguage('en'));
     langKoBtn.addEventListener('click', () => switchLanguage('ko'));
 
-    // 컨트롤 패널 토글 버튼 이벤트 리스너
-    controlsToggleBtn.addEventListener('click', () => {
-        controlsPanel.classList.toggle('hidden');
+    // --- 새로운 반응형 메뉴 토글 로직 ---
+    menuBtn.addEventListener('click', () => {
+        controlsPanel.classList.remove('translate-x-full');
     });
 
-    // 초기 로드 시 컨트롤 패널 가시성 설정 (모바일에서는 숨김)
-    if (window.innerWidth < 768) {
-        controlsPanel.classList.add('hidden');
-    } else {
-        controlsPanel.classList.remove('hidden');
-    }
+    closeMenuBtn.addEventListener('click', () => {
+        controlsPanel.classList.add('translate-x-full');
+    });
 
     loadModelAndSetup();
 }
 
-// --- 모델 로드 ---
+// --- 모델 로드 --- (이하 코드는 변경 없음)
 function loadModelAndSetup() {
     const loader = new OBJLoader();
     loader.load('./models/teeth.obj', (object) => {
@@ -153,7 +156,7 @@ function loadModelAndSetup() {
         let firstMesh = null;
         object.traverse((child) => {
             if (child.isMesh && !firstMesh) {
-                firstMesh = child; // 메시 자체를 저장
+                firstMesh = child;
             }
         });
 
@@ -163,26 +166,25 @@ function loadModelAndSetup() {
         }
 
         firstMesh.geometry.center();
-        // firstMesh.geometry.scale(1.0, 1.0, 1.0); // 이제 슬라이더로 제어
         const initialScale = parseFloat(toothScaleSlider.value);
         firstMesh.scale.set(initialScale, initialScale, initialScale);
 
-        createParticleSystem(firstMesh); // 메시 객체를 전달
-        fitCameraToModel(); // 모델 로드 후 카메라를 모델에 맞게 조정
-        setMode(false); // 초기 모드 설정 (애니메이션 모드로 시작)
+        createParticleSystem(firstMesh);
+        fitCameraToModel();
+        setMode(false);
         animate();
     });
 }
 
-// --- 파티클 시스템 생성 ---
-function createParticleSystem(mesh) { // mesh 객체를 인자로 받음
+// --- 파티클 시스템 생성 --- (변경 없음)
+function createParticleSystem(mesh) {
     const particlesGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(PARTICLE_COUNT * 3);
     const targetPositions = new Float32Array(PARTICLE_COUNT * 3);
     const randomPositions = new Float32Array(PARTICLE_COUNT * 3);
     const velocities = new Float32Array(PARTICLE_COUNT * 3).fill(0);
 
-    const sampler = new MeshSurfaceSampler(mesh).build(); // mesh 객체를 전달
+    const sampler = new MeshSurfaceSampler(mesh).build();
     const tempPosition = new THREE.Vector3();
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -199,7 +201,6 @@ function createParticleSystem(mesh) { // mesh 객체를 인자로 받음
         randomPositions[i3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
         randomPositions[i3 + 2] = radius * Math.cos(theta);
         
-        // 초기 위치를 targetPositions으로 설정하여 모델이 바로 보이도록 함
         positions[i3] = targetPositions[i3];
         positions[i3+1] = targetPositions[i3+1];
         positions[i3+2] = targetPositions[i3+2];
@@ -222,7 +223,7 @@ function createParticleSystem(mesh) { // mesh 객체를 인자로 받음
     scene.add(particles);
 }
 
-// --- 애니메이션 루프 ---
+// --- 애니메이션 루프 --- (변경 없음)
 function animate() {
     requestAnimationFrame(animate);
     const elapsedTime = clock.getElapsedTime();
@@ -249,13 +250,6 @@ function animate() {
             tempMousePoint.set(-1000, -1000, -1000);
         }
 
-        // Declare these outside the animate function, similar to tempVec3
-const tempTargetPos = new THREE.Vector3();
-const tempRandomPos = new THREE.Vector3();
-const tempCurrentVel = new THREE.Vector3();
-const tempRepulsionForce = new THREE.Vector3();
-const tempTargetForce = new THREE.Vector3();
-
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             const currentPos = tempVec3.fromBufferAttribute(positions, i);
             tempTargetPos.fromBufferAttribute(targets, i);
@@ -265,7 +259,7 @@ const tempTargetForce = new THREE.Vector3();
             const lerpTarget = tempTargetPos.lerpVectors(tempTargetPos, tempRandomPos, progress);
 
             const distance = currentPos.distanceTo(tempMousePoint);
-            tempRepulsionForce.set(0, 0, 0); // Reset for each particle
+            tempRepulsionForce.set(0, 0, 0);
             if (distance < 5) {
                 const repulsionStrength = (1 - (distance / 5)) * 10;
                 tempRepulsionForce.subVectors(currentPos, tempMousePoint).normalize().multiplyScalar(repulsionStrength);
@@ -288,7 +282,7 @@ const tempTargetForce = new THREE.Vector3();
     renderer.render(scene, camera);
 }
 
-// --- 이벤트 핸들러 ---
+// --- 이벤트 핸들러 --- (변경 없음)
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -302,14 +296,12 @@ function onMouseMove(event) {
 
 function onTouchMove(event) {
     if (isViewerMode) return;
-    // 여러 터치 중 첫 번째 터치만 사용
     if (event.touches.length > 0) {
         updateMousePosition(event.touches[0].clientX, event.touches[0].clientY);
     }
 }
 
 function onTouchEnd(event) {
-    // 터치가 끝나면 마우스 위치를 화면 밖으로 이동시켜 인터랙션 중지
     mouse.x = -100;
     mouse.y = -100;
 }
@@ -321,22 +313,20 @@ function updateMousePosition(x, y) {
 
 function onMouseWheel(event) {
     if (isViewerMode) {
-        event.preventDefault(); // 기본 스크롤 동작 방지
-
+        event.preventDefault();
         let currentValue = parseFloat(toothScaleSlider.value);
         const step = parseFloat(toothScaleSlider.step);
         const min = parseFloat(toothScaleSlider.min);
         const max = parseFloat(toothScaleSlider.max);
 
-        if (event.deltaY < 0) { // 휠을 위로 (확대)
+        if (event.deltaY < 0) {
             currentValue = Math.min(max, currentValue + step);
-        } else { // 휠을 아래로 (축소)
+        } else {
             currentValue = Math.max(min, currentValue - step);
         }
-        // step 단위로 정확하게 반올림
         currentValue = Math.round(currentValue / step) * step;
         toothScaleSlider.value = currentValue;
-        toothScaleSlider.dispatchEvent(new Event('input')); // input 이벤트 강제 발생
+        toothScaleSlider.dispatchEvent(new Event('input'));
     }
 }
 
@@ -365,41 +355,42 @@ function switchLanguage(lang) {
     }
 }
 
+// --- `setMode` 함수 수정 ---
+// HTML 구조가 변경되었으므로, 뷰포인트 컨트롤의 표시/숨김 방식을 수정합니다.
 function setMode(toViewerMode) {
     isViewerMode = toViewerMode;
     const animationModeBtn = document.getElementById('animationModeBtn');
     const viewerModeBtn = document.getElementById('viewerModeBtn');
     const viewpointControls = document.getElementById('viewpointControls');
 
-    // 기존 애니메이션 중지
     if (gsapAnimation) {
         gsapAnimation.kill();
     }
-
-    // 모든 버튼의 색상 클래스를 초기화하는 헬퍼 함수
+    
+    // 버튼 색상 초기화
     const clearButtonColors = (btn) => {
         btn.classList.remove(
-            'bg-green-500', 'hover:bg-green-600',
-            'bg-green-700', 'hover:bg-green-800', // 추가: 초기 HTML에 있던 클래스
-            'bg-blue-500', 'hover:bg-blue-600',
-            'bg-blue-700', 'hover:bg-blue-800', // 추가: 초기 HTML에 있던 클래스
+            'bg-green-500', 'hover:bg-green-600', 'bg-green-700', 'hover:bg-green-800',
+            'bg-blue-500', 'hover:bg-blue-600', 'bg-blue-700', 'hover:bg-blue-800',
             'bg-gray-600', 'hover:bg-gray-700'
         );
     };
-
     clearButtonColors(animationModeBtn);
     clearButtonColors(viewerModeBtn);
 
     if (isViewerMode) {
-        // 뷰어 모드 활성화
+        // 뷰어 모드
         viewerModeBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
-        animationModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700'); // 비활성화 색상
+        animationModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
 
         speedControl.style.display = 'none';
         actionControls.style.display = 'none';
-        viewpointControls.classList.remove('hidden'); // 뷰어 모드일 때 버튼 표시
-        // 뷰어 모드에서는 컨트롤 패널을 항상 보이도록
-        controlsPanel.classList.remove('hidden');
+        
+        // HTML 구조 변경에 맞춰 flex로 표시
+        viewpointControls.style.display = 'flex';
+        // 모바일 패널이 열려있다면 닫기
+        controlsPanel.classList.add('translate-x-full');
+
         controls.autoRotate = false;
 
         gsapAnimation = gsap.to(particles.geometry.attributes.position.array, {
@@ -410,33 +401,28 @@ function setMode(toViewerMode) {
                 particles.geometry.attributes.position.needsUpdate = true;
             }
         });
-
     } else {
-        // 애니메이션 모드 활성화
+        // 애니메이션 모드
         animationModeBtn.classList.add('bg-green-500', 'hover:bg-green-600');
-        viewerModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700'); // 비활성화 색상
+        viewerModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
 
-        speedControl.style.display = 'block';
+        speedControl.style.display = 'flex'; // flex로 표시
         actionControls.style.display = 'flex';
-        viewpointControls.classList.add('hidden'); // 애니메이션 모드일 때 버튼 숨김
-        // 애니메이션 모드에서는 컨트롤 패널을 기본적으로 숨김 (모바일에서)
-        if (window.innerWidth < 768) {
-            controlsPanel.classList.add('hidden');
-        }
+        viewpointControls.style.display = 'none';
+
+        // 모바일 패널이 열려있다면 닫기
+        controlsPanel.classList.add('translate-x-full');
+
         controls.autoRotate = true;
-        // GSAP가 제어하던 파티클의 속도를 초기화하여 lerp 애니메이션이 자연스럽게 이어지도록 함
         particles.geometry.attributes.velocity.array.fill(0);
     }
 }
 
-
-
-
-// --- 카메라 뷰 설정 ---
+// --- 카메라 뷰 설정 --- (변경 없음)
 function setCameraView(view) {
-    if (!particles) return; // 파티클이 없으면 함수 실행 중단
+    if (!particles) return;
 
-    const target = new THREE.Vector3(0, 0, 0); // 모델의 중심
+    const target = new THREE.Vector3(0, 0, 0);
     let newPosition;
 
     const box = new THREE.Box3().setFromObject(particles);
@@ -444,23 +430,14 @@ function setCameraView(view) {
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = camera.fov * (Math.PI / 180);
     let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-    cameraZ *= 1.2; // 약간의 여백 추가
+    cameraZ *= 1.2;
 
     switch (view) {
-        case 'front':
-            newPosition = new THREE.Vector3(0, 0, cameraZ);
-            break;
-        case 'side':
-            newPosition = new THREE.Vector3(cameraZ, 0, 0);
-            break;
-        case 'top':
-            newPosition = new THREE.Vector3(0, cameraZ, 0);
-            break;
-        case 'bottom':
-            newPosition = new THREE.Vector3(0, -cameraZ, 0);
-            break;
-        default:
-            newPosition = camera.position.clone();
+        case 'front': newPosition = new THREE.Vector3(0, 0, cameraZ); break;
+        case 'side': newPosition = new THREE.Vector3(cameraZ, 0, 0); break;
+        case 'top': newPosition = new THREE.Vector3(0, cameraZ, 0); break;
+        case 'bottom': newPosition = new THREE.Vector3(0, -cameraZ, 0); break;
+        default: newPosition = camera.position.clone();
     }
 
     gsap.to(camera.position, {
@@ -476,7 +453,7 @@ function setCameraView(view) {
     });
 }
 
-// --- 카메라를 모델에 맞게 조정 ---
+// --- 카메라를 모델에 맞게 조정 --- (변경 없음)
 function fitCameraToModel() {
     if (!particles) return;
 
@@ -487,8 +464,7 @@ function fitCameraToModel() {
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = camera.fov * (Math.PI / 180);
     let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-
-    cameraZ *= 1.2; // 약간의 여백 추가
+    cameraZ *= 1.2;
 
     gsap.to(camera.position, {
         duration: 1,
